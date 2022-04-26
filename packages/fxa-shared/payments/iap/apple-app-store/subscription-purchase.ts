@@ -87,7 +87,7 @@ export class SubscriptionPurchase {
   private inAppOwnershipType!: OwnershipType;
   private originalPurchaseDate!: number;
   originalTransactionId!: string; // unique identifier for the subscription; analogous to a Stripe subscription id
-  private productId!: string; // unique identifier for the plan; analogous to the Stripe plan id
+  productId!: string; // unique identifier for the plan; analogous to the Stripe plan id
   private status!: SubscriptionStatus;
   private type!: TransactionType;
   private expirationIntent?: number;

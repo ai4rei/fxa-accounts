@@ -24,6 +24,11 @@ const dbStub = {
   getUidAndEmailByStripeCustomerId: sinon.stub(),
 };
 const {
+  MozillaSubscriptionTypes,
+  PAYPAL_PAYMENT_ERROR_FUNDING_SOURCE,
+  PAYPAL_PAYMENT_ERROR_MISSING_AGREEMENT,
+} = require('../../../../fxa-shared/subscriptions/types');
+const {
   StripeHelper,
   STRIPE_INVOICE_METADATA,
   SUBSCRIPTION_UPDATE_TYPES,
@@ -95,11 +100,6 @@ const {
   FirestoreStripeError,
   newFirestoreStripeError,
 } = require('../../../lib/payments/stripe-firestore');
-const {
-  MozillaSubscriptionTypes,
-  PAYPAL_PAYMENT_ERROR_FUNDING_SOURCE,
-  PAYPAL_PAYMENT_ERROR_MISSING_AGREEMENT,
-} = require('../../../../fxa-shared/subscriptions/types');
 const AppError = require('../../../lib/error');
 
 const mockConfig = {
@@ -6326,9 +6326,12 @@ describe('StripeHelper', () => {
       sandbox.stub(stripeHelper, 'allAbbrevPlans').resolves(mockAllAbbrevPlans);
     });
 
-    describe('priceToPlaySkus', () => {
+    describe('priceToIapIdentifiers', () => {
       it('formats skus from price metadata, including transforming them to lowercase', () => {
-        const result = stripeHelper.priceToPlaySkus(mockPrice);
+        const result = stripeHelper.priceToIapIdentifiers(
+          mockPrice,
+          MozillaSubscriptionTypes.IAP_GOOGLE
+        );
         assert.deepEqual(result, ['testsku', 'testsku2']);
       });
 
@@ -6337,12 +6340,15 @@ describe('StripeHelper', () => {
           ...mockPrice,
           plan_metadata: {},
         };
-        const result = stripeHelper.priceToPlaySkus(price);
+        const result = stripeHelper.priceToIapIdentifiers(
+          price,
+          MozillaSubscriptionTypes.IAP_GOOGLE
+        );
         assert.deepEqual(result, []);
       });
     });
 
-    describe('purchasesToPriceIds', () => {
+    describe('iapPurchasesToPriceIds', () => {
       beforeEach(() => {
         const apiResponse = {
           kind: 'androidpublisher#subscriptionPurchase',
@@ -6367,14 +6373,20 @@ describe('StripeHelper', () => {
       });
 
       it('returns price ids for the subscription purchase', async () => {
-        const result = await stripeHelper.purchasesToPriceIds([subPurchase]);
+        const result = await stripeHelper.iapPurchasesToPriceIds(
+          [subPurchase],
+          MozillaSubscriptionTypes.IAP_GOOGLE
+        );
         assert.deepEqual(result, [priceId]);
         sinon.assert.calledOnce(stripeHelper.allAbbrevPlans);
       });
 
       it('returns no price ids for unknown subscription purchase', async () => {
         subPurchase.sku = 'wrongSku';
-        const result = await stripeHelper.purchasesToPriceIds([subPurchase]);
+        const result = await stripeHelper.iapPurchasesToPriceIds(
+          [subPurchase],
+          MozillaSubscriptionTypes.IAP_GOOGLE
+        );
         assert.deepEqual(result, []);
         sinon.assert.calledOnce(stripeHelper.allAbbrevPlans);
       });

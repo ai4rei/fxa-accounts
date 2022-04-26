@@ -2,11 +2,29 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 import { Firestore } from '@google-cloud/firestore';
+import {
+  MozillaSubscriptionTypes,
+  SubscriptionType,
+} from 'fxa-shared/subscriptions/types';
 import { Container } from 'typedi';
 import { TypedCollectionReference } from 'typesafe-node-firestore';
 
 import { AppConfig, AuthFirestore, AuthLogger } from '../../types';
+import { SubscriptionPurchase as AppStoreSubscriptionPurchase } from './apple-app-store/subscription-purchase';
+import { SubscriptionPurchase as PlayStoreSubscriptionPurchase } from './google-play/subscription-purchase';
 import { IapConfig } from './types';
+
+export function getIapPurchaseType(
+  purchase: PlayStoreSubscriptionPurchase | AppStoreSubscriptionPurchase
+): Omit<SubscriptionType, typeof MozillaSubscriptionTypes.WEB> {
+  if (purchase instanceof PlayStoreSubscriptionPurchase) {
+    return MozillaSubscriptionTypes.IAP_GOOGLE;
+  }
+  if (purchase instanceof AppStoreSubscriptionPurchase) {
+    return MozillaSubscriptionTypes.IAP_APPLE;
+  }
+  throw new Error('Purchase is not recognized as either Google or Apple IAP.');
+}
 
 export class IAPConfig {
   private firestore: Firestore;

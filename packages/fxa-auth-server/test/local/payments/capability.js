@@ -192,7 +192,7 @@ describe('CapabilityService', () => {
     });
   });
 
-  describe('playUpdate', () => {
+  describe('iapUpdate', () => {
     let subscriptionPurchase;
 
     beforeEach(() => {
@@ -212,13 +212,13 @@ describe('CapabilityService', () => {
         'testSku',
         Date.now()
       );
-      mockStripeHelper.purchasesToPriceIds = sinon.fake.resolves([
+      mockStripeHelper.iapPurchasesToPriceIds = sinon.fake.resolves([
         'prod_FUUNYnlDso7FeB',
       ]);
     });
 
-    it('handles a play purchase with new product', async () => {
-      await capabilityService.playUpdate(UID, EMAIL, subscriptionPurchase);
+    it('handles an IAP purchase with new product', async () => {
+      await capabilityService.iapUpdate(UID, EMAIL, subscriptionPurchase);
       assert.calledWith(mockProfileClient.deleteCache, UID);
       assert.calledWith(capabilityService.subscribedPriceIds, UID);
       assert.calledWith(capabilityService.processPriceIdDiff, {
@@ -228,9 +228,9 @@ describe('CapabilityService', () => {
       });
     });
 
-    it('handles a play purchase with a removed product', async () => {
+    it('handles an IAP purchase with a removed product', async () => {
       capabilityService.subscribedPriceIds = sinon.fake.resolves([]);
-      await capabilityService.playUpdate(UID, EMAIL, subscriptionPurchase);
+      await capabilityService.iapUpdate(UID, EMAIL, subscriptionPurchase);
       assert.calledWith(mockProfileClient.deleteCache, UID);
       assert.calledWith(capabilityService.subscribedPriceIds, UID);
       assert.calledWith(capabilityService.processPriceIdDiff, {
@@ -298,7 +298,9 @@ describe('CapabilityService', () => {
           ],
         },
       }));
-      mockStripeHelper.purchasesToPriceIds = sinon.fake.returns(['plan_PLAY']);
+      mockStripeHelper.iapPurchasesToPriceIds = sinon.fake.returns([
+        'plan_PLAY',
+      ]);
       mockSubscriptionPurchase = {
         sku: 'play_1234',
         isEntitlementActive: sinon.fake.returns(true),
