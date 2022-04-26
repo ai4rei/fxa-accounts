@@ -21,6 +21,10 @@ import { PlanConfig } from 'fxa-shared/subscriptions/configuration/plan';
 import { ProductConfig } from 'fxa-shared/subscriptions/configuration/product';
 import { StripeHelper } from '../../lib/payments/stripe';
 import { commaSeparatedListToArray } from '../../lib/payments/utils';
+import {
+  PLAN_EN_LANG_ERROR,
+  getLanguageTagFromPlanMetadata,
+} from './plan-language-tags-guesser';
 
 const DEFAULT_LOCALE = 'en';
 
@@ -238,30 +242,14 @@ export class StripeProductsAndPlansConverter {
   }
 
   /**
-   * Infer a locale (language only or language and region) from a Stripe Plan.
-   * TODO: #12053: Improve heuristics
-   */
-  findLocaleStringFromStripePlan(plan: Stripe.Plan): null | string {
-    // Try to extract a locale from the plan nickname
-    const { nickname } = plan;
-    let locale = nickname
-      ?.split(' ')
-      .filter((w) => this.supportedLanguages.includes(w.toLowerCase()));
-    if (locale && locale.length > 0) {
-      return locale[0];
-    }
-    return null;
-  }
-
-  /**
    * Extract localized data from a Stripe Plan and convert it to
    * ProductConfig.locales
    */
-  stripePlanLocalesToProductConfigLocales(
+  async stripePlanLocalesToProductConfigLocales(
     plan: Stripe.Plan
-  ): ProductConfig['locales'] {
+  ): Promise<ProductConfig['locales']> {
     const locales: ProductConfig['locales'] = {};
-    const localeStr = this.findLocaleStringFromStripePlan(plan);
+    const localeStr = await getLanguageTagFromPlanMetadata(plan);
     // These keys exist on the top level of ProductConfig for the default locale
     if (
       !localeStr ||
@@ -269,15 +257,16 @@ export class StripeProductsAndPlansConverter {
     ) {
       return locales;
     }
-    const uiContent = this.uiContentMetadataToUiContentConfig(plan);
-    const urls = this.urlMetadataToUrlConfig(plan);
-    const support = this.supportMetadataToSupportConfig(plan);
-    locales[localeStr] = {
-      uiContent,
-      urls,
-      support,
-    };
+    locales[localeStr] = this.metadataToLocalizableConfigs(plan);
     return locales;
+  }
+
+  metadataToLocalizableConfigs(stripeObject: Stripe.Product | Stripe.Plan) {
+    return {
+      uiContent: this.uiContentMetadataToUiContentConfig(stripeObject),
+      urls: this.urlMetadataToUrlConfig(stripeObject),
+      support: this.supportMetadataToSupportConfig(stripeObject),
+    };
   }
 
   /**
@@ -382,13 +371,35 @@ export class StripeProductsAndPlansConverter {
         for await (const plan of this.stripeHelper.stripe.plans.list({
           product: product.id,
         })) {
-          this.stripePlanLocalesToProductConfigLocales(plan);
-          productConfig.locales = {
-            ...productConfig.locales,
-            ...this.stripePlanLocalesToProductConfigLocales(plan),
-          };
+          let planEnLocale;
+
+          try {
+            productConfig.locales = {
+              ...productConfig.locales,
+              ...(await this.stripePlanLocalesToProductConfigLocales(plan)),
+            };
+          } catch (planLangError) {
+            if (planLangError.message !== PLAN_EN_LANG_ERROR) {
+              planEnLocale = {
+                [DEFAULT_LOCALE]: this.metadataToLocalizableConfigs(plan),
+              };
+            } else {
+              this.log.error(
+                'StripeProductsAndPlansConverter.guessLanguageError',
+                {
+                  error: planLangError.message,
+                  stripePlanId: plan.id,
+                  stripeProductId: product.id,
+                }
+              );
+            }
+          }
+
           try {
             const planConfig = this.stripePlanToPlanConfig(plan);
+            if (planEnLocale) {
+              planConfig.locales = planEnLocale;
+            }
             // If a planConfig doc already exists, update it rather than creating
             // a new doc
             const existingPlanConfigId =

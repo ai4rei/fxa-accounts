@@ -6,6 +6,7 @@
 
 const { assert } = require('chai');
 const sinon = require('sinon');
+const proxyquire = require('proxyquire');
 
 const { deleteCollection } = require('../local/payments/util');
 const { AuthFirestore, AuthLogger, AppConfig } = require('../../lib/types');
@@ -14,9 +15,24 @@ const { deepCopy } = require('../local/payments/util');
 const plan = require('fxa-auth-server/test/local/payments/fixtures/stripe/plan2.json');
 const product = require('fxa-shared/test/fixtures/stripe/product1.json');
 const { mockLog, mockStripeHelper } = require('../mocks');
-const {
-  StripeProductsAndPlansConverter,
-} = require('../../scripts/stripe-products-and-plans-to-firestore-documents/stripe-products-and-plans-converter');
+const langFromMetadataMock = {
+  getLanguageTagFromPlanMetadata: sinon.stub().callsFake((plan) => {
+    if (plan.nickname.includes('es-ES')) {
+      return 'es-ES';
+    }
+    if (plan.nickname.includes('fr')) {
+      return 'fr';
+    }
+    return 'en';
+  }),
+};
+const { StripeProductsAndPlansConverter } = proxyquire(
+  '../../scripts/stripe-products-and-plans-to-firestore-documents/stripe-products-and-plans-converter',
+  {
+    '../../scripts/stripe-products-and-plans-to-firestore-documents/plan-language-tags-guesser':
+      langFromMetadataMock,
+  }
+);
 const {
   PaymentConfigManager,
 } = require('../../lib/payments/configuration/manager');
@@ -256,38 +272,8 @@ describe('StripeProductsAndPlansConverter', () => {
     });
   });
 
-  describe('findLocaleStringFromStripePlan', () => {
-    it('returns a locale from the plan nickname if valid', () => {
-      const planWithLocalizedData = {
-        ...deepCopy(plan),
-        nickname: '123Done Pro Monthly es-ES',
-        metadata: {
-          'product:details:1': 'Producto nuevo',
-        },
-      };
-      const expected = 'es-ES';
-      const actual = converter.findLocaleStringFromStripePlan(
-        planWithLocalizedData
-      );
-      assert.equal(expected, actual);
-    });
-    it('returns null if no valid locale is found', () => {
-      const planWithLocalizedData = {
-        ...deepCopy(plan),
-        nickname: '123Done Pro Monthly',
-        metadata: {
-          'product:details:1': 'Producto nuevo',
-        },
-      };
-      const actual = converter.findLocaleStringFromStripePlan(
-        planWithLocalizedData
-      );
-      assert.isNull(actual);
-    });
-  });
-
   describe('stripePlanLocalesToProductConfigLocales', () => {
-    it('returns a ProductConfig.locales object if a locale is found', () => {
+    it('returns a ProductConfig.locales object if a locale is found', async () => {
       const planWithLocalizedData = {
         ...deepCopy(plan),
         nickname: '123Done Pro Monthly es-ES',
@@ -305,12 +291,12 @@ describe('StripeProductsAndPlansConverter', () => {
           support: {},
         },
       };
-      const actual = converter.stripePlanLocalesToProductConfigLocales(
+      const actual = await converter.stripePlanLocalesToProductConfigLocales(
         planWithLocalizedData
       );
-      assert.deepEqual(expected, actual);
+      assert.deepEqual(actual, expected);
     });
-    it('returns {} if no locale is found', () => {
+    it('returns {} if no locale is found', async () => {
       const planWithLocalizedData = {
         ...deepCopy(plan),
         nickname: '123Done Pro Monthly',
@@ -320,7 +306,7 @@ describe('StripeProductsAndPlansConverter', () => {
         },
       };
       const expected = {};
-      const actual = converter.stripePlanLocalesToProductConfigLocales(
+      const actual = await converter.stripePlanLocalesToProductConfigLocales(
         planWithLocalizedData
       );
       assert.deepEqual(expected, actual);
