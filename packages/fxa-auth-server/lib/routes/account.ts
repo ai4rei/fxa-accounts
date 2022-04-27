@@ -1,7 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-import isA from '@hapi/joi';
+import isA, { optional } from '@hapi/joi';
 import crypto from 'crypto';
 import {
   deleteAllPayPalBAs,
@@ -31,6 +31,8 @@ import emailUtils from './utils/email';
 import requestHelper from './utils/request_helper';
 import validators from './validators';
 import { deleteAccountIfUnverified } from './utils/account';
+import TopEmailDomains from 'fxa-shared/email/topEmailDomains';
+import { tryResolveMx, tryResolveIpv4 } from 'fxa-shared/email/validateEmail';
 
 const ACCOUNT_DOCS = require('../../docs/swagger/account-api').default;
 const MISC_DOCS = require('../../docs/swagger/misc-api').default;
@@ -1027,17 +1029,49 @@ export class AccountHandler {
 
   async accountStatusCheck(request: AuthRequest) {
     const email = (request.payload as any).email;
+    const checkDomain = !!(request.payload as any).checkDomain;
+    let isBad = false;
+
+    if (checkDomain) {
+      const domain = email.split('@')[1];
+      if (!TopEmailDomains.has(domain)) {
+        let mxCheck = false,
+          ipv4Check = false;
+
+        try {
+          mxCheck = await tryResolveMx(domain);
+          ipv4Check = await tryResolveIpv4(domain);
+        } catch (error) {
+          // check against email errors
+        }
+
+        isBad = !mxCheck && !ipv4Check;
+      }
+    }
 
     await this.customs.check(request, email, 'accountStatusCheck');
 
+    const result: { exists: boolean; isBad: boolean | undefined } = {
+      exists: false,
+      isBad: undefined,
+    };
+
     try {
       const exist = await this.db.accountExists(email);
-      return {
-        exists: exist,
-      };
+      result.exists = exist;
+
+      if (checkDomain) {
+        result.isBad = isBad;
+      }
+
+      return result;
     } catch (err) {
       if (err.errno === error.ERRNO.ACCOUNT_UNKNOWN) {
-        return { exists: false };
+        result.exists = false;
+        if (checkDomain) {
+          result.isBad = isBad;
+        }
+        return result;
       }
       throw err;
     }
@@ -1702,6 +1736,7 @@ export const accountRoutes = (
           payload: isA
             .object({
               email: validators.email().required(),
+              checkDomain: isA.optional(),
             })
             .label('AccountStatusCheck_payload'),
         },
@@ -1709,6 +1744,7 @@ export const accountRoutes = (
           schema: isA
             .object({
               exists: isA.boolean().required(),
+              isBad: isA.boolean().optional(),
             })
             .label('AccountStausCheck_response'),
         },
