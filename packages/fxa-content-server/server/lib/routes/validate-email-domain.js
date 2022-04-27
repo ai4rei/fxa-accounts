@@ -11,13 +11,11 @@
 
 const joi = require('joi');
 const VError = require('verror');
-const results = require('../../../../fxa-shared/email/validateEmail').results;
-const tryResolveMx =
-  require('../../../../fxa-shared/email/validateEmail').tryResolveMx;
-const tryResolveIpv4 =
-  require('../../../../fxa-shared/email/validateEmail').tryResolveIpv4;
+const results = require('fxa-shared/email/validateEmail').results;
+const tryResolveMx = require('fxa-shared/email/validateEmail').tryResolveMx;
+const tryResolveIpv4 = require('fxa-shared/email/validateEmail').tryResolveIpv4;
 const WrappedErrorCodes =
-  require('../../../../fxa-shared/email/emailValidatorErrors').WrappedErrorCodes;
+  require('fxa-shared/email/emailValidatorErrors').WrappedErrorCodes;
 
 module.exports = function (config) {
   return {
