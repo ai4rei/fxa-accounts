@@ -4707,6 +4707,23 @@ describe('StripeHelper', () => {
         });
       });
 
+      it('extracts expected details from an invoice of an upgrade', async () => {
+        const fixture = deepCopy(invoicePaidSubscriptionCreate);
+        fixture.lines.data.push(fixture.lines.data[0]);
+        fixture.lines.data[0].type = 'invoiceitem';
+        fixture.lines.data[1].period.end = 1593038132;
+        const result = await stripeHelper.extractInvoiceDetailsForEmail(
+          fixture
+        );
+        assert.isTrue(stripeHelper.allAbbrevProducts.called);
+        assert.isFalse(mockStripe.products.retrieve.called);
+        sinon.assert.calledTwice(expandMock);
+        assert.deepEqual(result, {
+          ...expected,
+          nextInvoiceDate: new Date('2020-06-24T22:35:32.000Z'),
+        });
+      });
+
       it('extracts expected details from an invoice with discount', async () => {
         const result = await stripeHelper.extractInvoiceDetailsForEmail(
           fixtureDiscount

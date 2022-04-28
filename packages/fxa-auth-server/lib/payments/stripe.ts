@@ -2584,14 +2584,12 @@ export class StripeHelper {
       total: invoiceTotalInCents,
       subtotal: invoiceSubtotalInCents,
       hosted_invoice_url: invoiceLink,
-      lines: {
-        data: [
-          {
-            period: { end: nextInvoiceDate },
-          },
-        ],
-      },
+      lines: { data: invoiceLines },
     } = invoice;
+
+    const nextInvoiceDate =
+      invoiceLines.find((line) => line.type === 'subscription')?.period.end ||
+      invoiceLines[0].period.end;
 
     const invoiceDiscountAmountInCents =
       (invoice.total_discount_amounts &&
