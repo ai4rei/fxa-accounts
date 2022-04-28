@@ -15,6 +15,9 @@ const { deepCopy } = require('../local/payments/util');
 const plan = require('fxa-auth-server/test/local/payments/fixtures/stripe/plan2.json');
 const product = require('fxa-shared/test/fixtures/stripe/product1.json');
 const { mockLog, mockStripeHelper } = require('../mocks');
+const {
+  PLAN_EN_LANG_ERROR,
+} = require('../../scripts/stripe-products-and-plans-to-firestore-documents/plan-language-tags-guesser');
 const langFromMetadataMock = {
   getLanguageTagFromPlanMetadata: sinon.stub().callsFake((plan) => {
     if (plan.nickname.includes('es-ES')) {
@@ -22,6 +25,9 @@ const langFromMetadataMock = {
     }
     if (plan.nickname.includes('fr')) {
       return 'fr';
+    }
+    if (plan.nickname === 'localised en plan') {
+      throw new Error(PLAN_EN_LANG_ERROR);
     }
     return 'en';
   }),
@@ -401,6 +407,26 @@ describe('StripeProductsAndPlansConverter', () => {
     const planConfig2 = { ...deepCopy(planConfig1), stripePriceId: plan2.id };
     const plan3 = deepCopy({ ...deepCopy(plan1), id: 'plan_789' });
     const planConfig3 = { ...deepCopy(planConfig1), stripePriceId: plan3.id };
+    const plan4 = deepCopy({
+      ...deepCopy(plan1),
+      id: 'plan_infinity',
+      nickname: 'localised en plan',
+    });
+    const planConfig4 = {
+      ...deepCopy(planConfig1),
+      stripePriceId: plan4.id,
+      locales: {
+        en: {
+          support: {},
+          uiContent: {
+            upgradeCTA: 'hello <a href="http://example.org">world</a>',
+          },
+          urls: {
+            download: 'https://example.com/download',
+          },
+        },
+      },
+    };
     beforeEach(() => {
       const firestore = setupFirestore(mockConfig);
       Container.set(AuthFirestore, firestore);
@@ -426,6 +452,7 @@ describe('StripeProductsAndPlansConverter', () => {
       async function* planGenerator1() {
         yield plan1;
         yield plan2;
+        yield plan4;
       }
       async function* planGenerator2() {
         yield plan3;
@@ -481,8 +508,13 @@ describe('StripeProductsAndPlansConverter', () => {
         productConfigId: products[0].id,
       });
       assert.deepEqual(plans[2], {
-        ...planConfig3,
+        ...planConfig4,
         id: plans[2].id,
+        productConfigId: products[0].id,
+      });
+      assert.deepEqual(plans[3], {
+        ...planConfig3,
+        id: plans[3].id,
         productConfigId: products[1].id,
       });
     });

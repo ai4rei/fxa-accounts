@@ -241,6 +241,14 @@ export class StripeProductsAndPlansConverter {
     return productConfig;
   }
 
+  metadataToLocalizableConfigs(stripeObject: Stripe.Product | Stripe.Plan) {
+    return {
+      uiContent: this.uiContentMetadataToUiContentConfig(stripeObject),
+      urls: this.urlMetadataToUrlConfig(stripeObject),
+      support: this.supportMetadataToSupportConfig(stripeObject),
+    };
+  }
+
   /**
    * Extract localized data from a Stripe Plan and convert it to
    * ProductConfig.locales
@@ -259,14 +267,6 @@ export class StripeProductsAndPlansConverter {
     }
     locales[localeStr] = this.metadataToLocalizableConfigs(plan);
     return locales;
-  }
-
-  metadataToLocalizableConfigs(stripeObject: Stripe.Product | Stripe.Plan) {
-    return {
-      uiContent: this.uiContentMetadataToUiContentConfig(stripeObject),
-      urls: this.urlMetadataToUrlConfig(stripeObject),
-      support: this.supportMetadataToSupportConfig(stripeObject),
-    };
   }
 
   /**
@@ -378,8 +378,8 @@ export class StripeProductsAndPlansConverter {
               ...productConfig.locales,
               ...(await this.stripePlanLocalesToProductConfigLocales(plan)),
             };
-          } catch (planLangError) {
-            if (planLangError.message !== PLAN_EN_LANG_ERROR) {
+          } catch (err) {
+            if (err.message === PLAN_EN_LANG_ERROR) {
               planEnLocale = {
                 [DEFAULT_LOCALE]: this.metadataToLocalizableConfigs(plan),
               };
@@ -387,7 +387,7 @@ export class StripeProductsAndPlansConverter {
               this.log.error(
                 'StripeProductsAndPlansConverter.guessLanguageError',
                 {
-                  error: planLangError.message,
+                  error: err.message,
                   stripePlanId: plan.id,
                   stripeProductId: product.id,
                 }

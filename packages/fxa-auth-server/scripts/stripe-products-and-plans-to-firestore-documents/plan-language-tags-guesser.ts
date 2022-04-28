@@ -11,9 +11,14 @@ import { Stripe } from 'stripe';
  * metadata.
  *
  * The language will be determined with one or more of the following:
- *  - the language detected by Google Cloud Translation from the plan's product details metadata
+ *  - the language detected by Google Cloud Translation from the plan's product
+ *    details metadata
  *  - the plan's title
  *  - the plan's currency
+ *
+ * There is no direct connection between a currency and a localised language,
+ * but with the special case of Switzerland (the only one at the time of
+ * writing), this is the sure way to detect for Swiss language tags.
  */
 
 const MIN_CONFIDENCE = 0.51;
@@ -81,10 +86,6 @@ const findLocaleInTitle = (lang: string, planTitle: string) => {
 };
 
 const mapCurrencyToLocale = (currency: string) => {
-  // there is no direct connection between a currency and a localised
-  // language, but with the special case of Switzerland (the only one at the
-  // time of writing), this is the sure way to detect for Swiss language
-  // tags.
   const currencyToLocaleMap: { [key: string]: string } = { chf: 'CH' };
   if (currencyToLocaleMap[currency.toLowerCase()]) {
     return currencyToLocaleMap[currency.toLowerCase()];
@@ -106,7 +107,7 @@ const handleEnglishPlan = (plan: Partial<Stripe.Plan>) => {
     (plan.product as Stripe.Product).metadata
   );
 
-  // just a copy of the proudct's metadata apparently
+  // just a copy of the product's metadata apparently
   if (planDetails === productDetails) {
     return;
   }
