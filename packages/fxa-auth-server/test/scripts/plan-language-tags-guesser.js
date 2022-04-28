@@ -11,15 +11,15 @@ const googleTranslateV2Mock = sandbox.createStubInstance(
   googleTranslate.v2.Translate
 );
 sandbox.stub(googleTranslate.v2, 'Translate').returns(googleTranslateV2Mock);
-
-const superagent = require('superagent');
-sandbox.stub(superagent, 'get').resolves({
-  text: JSON.stringify({
-    availableLocales: {
-      modern: ['de', 'de-CH', 'en', 'en-GD', 'es', 'es-US', 'nl-BE'],
-    },
-  }),
-});
+const supportedLanguages = [
+  'de',
+  'de-ch',
+  'en',
+  'en-gd',
+  'es',
+  'es-us',
+  'nl-be',
+];
 
 const {
   getLanguageTagFromPlanMetadata,
@@ -41,7 +41,10 @@ describe('getLanguageTagFromPlanMetadata', () => {
   });
 
   it('returns undefined when there are no product details in the plan', async () => {
-    const actual = await getLanguageTagFromPlanMetadata({ metadata: {} });
+    const actual = await getLanguageTagFromPlanMetadata(
+      { metadata: {} },
+      supportedLanguages
+    );
     assert.isUndefined(actual);
   });
 
@@ -51,7 +54,7 @@ describe('getLanguageTagFromPlanMetadata', () => {
       googleTranslateV2Mock.detect.resolves([
         { confidence: 0.3, language: 'en' },
       ]);
-      await getLanguageTagFromPlanMetadata(plan);
+      await getLanguageTagFromPlanMetadata(plan, supportedLanguages);
       assert.fail('An error should have been thrown');
     } catch (err) {
       assert.equal(
@@ -62,7 +65,10 @@ describe('getLanguageTagFromPlanMetadata', () => {
   });
 
   it('returns undefined when the plan language is en and detail is indentical to the product', async () => {
-    const actual = await getLanguageTagFromPlanMetadata(plan);
+    const actual = await getLanguageTagFromPlanMetadata(
+      plan,
+      supportedLanguages
+    );
     assert.isUndefined(actual);
   });
 
@@ -75,7 +81,7 @@ describe('getLanguageTagFromPlanMetadata', () => {
           metadata: { 'product:detail:1': 'goodbye' },
         },
       };
-      await getLanguageTagFromPlanMetadata(p);
+      await getLanguageTagFromPlanMetadata(p, supportedLanguages);
       assert.fail('An error should have been thrown');
     } catch (err) {
       assert.equal(err.message, 'Plan specific en metadata');
@@ -87,7 +93,10 @@ describe('getLanguageTagFromPlanMetadata', () => {
     googleTranslateV2Mock.detect.resolves([
       { confidence: 0.9, language: 'es' },
     ]);
-    const actual = await getLanguageTagFromPlanMetadata(plan);
+    const actual = await getLanguageTagFromPlanMetadata(
+      plan,
+      supportedLanguages
+    );
     assert.equal(actual, 'es');
   });
 
@@ -100,7 +109,7 @@ describe('getLanguageTagFromPlanMetadata', () => {
         metadata: { 'product:detail:1': 'goodbye' },
       },
     };
-    const actual = await getLanguageTagFromPlanMetadata(p);
+    const actual = await getLanguageTagFromPlanMetadata(p, supportedLanguages);
     assert.equal(actual, 'en-GD');
   });
 
@@ -113,7 +122,7 @@ describe('getLanguageTagFromPlanMetadata', () => {
       ...plan,
       nickname: 'nl for BE letsgooo',
     };
-    const actual = await getLanguageTagFromPlanMetadata(p);
+    const actual = await getLanguageTagFromPlanMetadata(p, supportedLanguages);
     assert.equal(actual, 'nl-BE');
   });
 
@@ -126,7 +135,7 @@ describe('getLanguageTagFromPlanMetadata', () => {
       ...plan,
       currency: 'chf',
     };
-    const actual = await getLanguageTagFromPlanMetadata(p);
+    const actual = await getLanguageTagFromPlanMetadata(p, supportedLanguages);
     assert.equal(actual, 'de-CH');
   });
 });

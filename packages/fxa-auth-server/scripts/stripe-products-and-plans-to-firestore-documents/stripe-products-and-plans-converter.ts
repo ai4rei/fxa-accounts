@@ -28,6 +28,13 @@ import {
 
 const DEFAULT_LOCALE = 'en';
 
+function isGoogleTranslationApiError(err: any) {
+  return (
+    err.code >= 400 &&
+    err.response?.request?.href?.includes('translation.googleapis')
+  );
+}
+
 /**
  * Handles converting Stripe Products and Plans to Firestore ProductConfig
  * and PlanConfig Firestore documents. Updates existing documents if they
@@ -257,7 +264,10 @@ export class StripeProductsAndPlansConverter {
     plan: Stripe.Plan
   ): Promise<ProductConfig['locales']> {
     const locales: ProductConfig['locales'] = {};
-    const localeStr = await getLanguageTagFromPlanMetadata(plan);
+    const localeStr = await getLanguageTagFromPlanMetadata(
+      plan,
+      this.supportedLanguages
+    );
     // These keys exist on the top level of ProductConfig for the default locale
     if (
       !localeStr ||
@@ -383,6 +393,8 @@ export class StripeProductsAndPlansConverter {
               planEnLocale = {
                 [DEFAULT_LOCALE]: this.metadataToLocalizableConfigs(plan),
               };
+            } else if (isGoogleTranslationApiError(err)) {
+              throw err;
             } else {
               this.log.error(
                 'StripeProductsAndPlansConverter.guessLanguageError',
@@ -458,6 +470,10 @@ export class StripeProductsAndPlansConverter {
           );
         }
       } catch (error) {
+        if (isGoogleTranslationApiError(error)) {
+          throw new Error(`Google Translation API error: ${error.message}`);
+        }
+
         this.log.error('StripeProductsAndPlansConverter.convertProductError', {
           error: error.message,
           stripeProductId: product.id,

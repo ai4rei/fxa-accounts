@@ -18,6 +18,16 @@ const { mockLog, mockStripeHelper } = require('../mocks');
 const {
   PLAN_EN_LANG_ERROR,
 } = require('../../scripts/stripe-products-and-plans-to-firestore-documents/plan-language-tags-guesser');
+const GOOGLE_ERROR_MESSAGE = 'Google Translate Error Overload';
+const googleTranslateShapedError = {
+  code: 403,
+  message: GOOGLE_ERROR_MESSAGE,
+  response: {
+    request: {
+      href: 'https://translation.googleapis.com/language/translate/v2/detect',
+    },
+  },
+};
 const langFromMetadataMock = {
   getLanguageTagFromPlanMetadata: sinon.stub().callsFake((plan) => {
     if (plan.nickname.includes('es-ES')) {
@@ -28,6 +38,9 @@ const langFromMetadataMock = {
     }
     if (plan.nickname === 'localised en plan') {
       throw new Error(PLAN_EN_LANG_ERROR);
+    }
+    if (plan.nickname === 'you cannot translate this') {
+      throw googleTranslateShapedError;
     }
     return 'en';
   }),
@@ -408,7 +421,7 @@ describe('StripeProductsAndPlansConverter', () => {
     const plan3 = deepCopy({ ...deepCopy(plan1), id: 'plan_789' });
     const planConfig3 = { ...deepCopy(planConfig1), stripePriceId: plan3.id };
     const plan4 = deepCopy({
-      ...deepCopy(plan1),
+      ...plan1,
       id: 'plan_infinity',
       nickname: 'localised en plan',
     });
@@ -427,6 +440,11 @@ describe('StripeProductsAndPlansConverter', () => {
         },
       },
     };
+    const plan5 = deepCopy({
+      ...plan1,
+      id: 'plan_googol',
+      nickname: 'you cannot translate this',
+    });
     beforeEach(() => {
       const firestore = setupFirestore(mockConfig);
       Container.set(AuthFirestore, firestore);
@@ -764,6 +782,29 @@ describe('StripeProductsAndPlansConverter', () => {
           stripeProductId: product1.id,
         }
       );
+    });
+    it('re-throws an error from Google Translation API', async () => {
+      async function* planGenerator() {
+        yield plan5;
+      }
+      async function* productGenerator() {
+        yield product1;
+      }
+      try {
+        converter.stripeHelper.stripe = {
+          products: { list: sandbox.stub().returns(productGenerator()) },
+          plans: {
+            list: sandbox.stub().returns(planGenerator()),
+          },
+        };
+        await converter.convert(args);
+        assert.fail('An error should have been thrown');
+      } catch (err) {
+        assert.equal(
+          err.message,
+          `Google Translation API error: ${GOOGLE_ERROR_MESSAGE}`
+        );
+      }
     });
   });
 });

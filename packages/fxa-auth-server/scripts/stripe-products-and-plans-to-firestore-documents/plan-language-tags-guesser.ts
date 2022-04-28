@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 import { v2 as CloudTranslate } from '@google-cloud/translate';
-import superagent from 'superagent';
 import { Stripe } from 'stripe';
 
 /**
@@ -27,15 +26,8 @@ const { Translate } = CloudTranslate;
 const translate = new Translate();
 let locales: string[];
 
-const initLocales = async () => {
-  if (!locales) {
-    const localesRes = await superagent.get(
-      'https://raw.githubusercontent.com/unicode-org/cldr-json/main/cldr-json/cldr-core/availableLocales.json'
-    );
-    locales = JSON.parse(localesRes.text).availableLocales.modern.map(
-      (x: string) => x.toLowerCase()
-    );
-  }
+const initLocales = (x: string[]) => {
+  locales = x;
 };
 
 const getMetadataProductDetails = (metadata: Stripe.Metadata) =>
@@ -129,8 +121,11 @@ const handleEnglishPlan = (plan: Partial<Stripe.Plan>) => {
   return formatLanguageTag(lang);
 };
 
-export const getLanguageTagFromPlanMetadata = async (plan: Stripe.Plan) => {
-  await initLocales();
+export const getLanguageTagFromPlanMetadata = async (
+  plan: Stripe.Plan,
+  locales: string[]
+) => {
+  initLocales(locales);
   const planDetails = getMetadataProductDetails(plan.metadata!);
 
   if (planDetails) {
