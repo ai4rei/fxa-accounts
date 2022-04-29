@@ -29,6 +29,7 @@ import { uuidTransformer } from '../../database/transformers';
 import { Account as AccountType } from '../../gql/model/account.model';
 import { AttachedClient } from '../../gql/model/attached-clients.model';
 import { Email as EmailType } from '../../gql/model/emails.model';
+import { SecurityEventNames } from 'fxa-shared/db/models/auth/security-event';
 import { AdminPanelFeature } from 'fxa-shared/guards';
 
 const ACCOUNT_COLUMNS = [
@@ -154,17 +155,31 @@ export class AccountResolver {
     return !!result;
   }
 
+  @Features(AdminPanelFeature.EnableAccount)
+  @Mutation((returns) => Boolean)
+  public async enableAccount(
+    @Args('uid') uid: string,
+    @CurrentUser() user: string
+  ) {
+    const uidBuffer = uuidTransformer.to(uid);
+    const result = await this.db.account
+      .query()
+      .update({ disabledAt: null })
+      .where('uid', uidBuffer);
+    return !!result;
+  }
+
   @Features(AdminPanelFeature.AccountSearch)
   @Mutation((returns) => Boolean)
   public async recordAdminSecurityEvent(
     @Args('uid') uid: string,
-    @Args('name') name: string
+    @Args('name') name: SecurityEventNames
   ) {
     // the ipAddr and ipHmacKey values here are required, but also have no bearing on this type of record.
     // the securityEvents table is being repurposed to store a broader variety of events, hence the dummy values.
     const result = await this.db.securityEvents.create({
       uid,
-      name: 'emails.clearBounces',
+      name,
       ipAddr: '',
       ipHmacKey: this.ipHmacKey,
     });
